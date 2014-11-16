@@ -16,13 +16,11 @@ exports.mesh = function(mesh, cbExt)
 
   var tp = {pipes:{}};
 
-  
-
-  // create the udp socket
-  tp.server = net.createServer(function connect(c){
-//    tp.pipe(false, {type:'tcp4',ip:rinfo.address,port:rinfo.port}, function(pipe){
-//      mesh.receive(packet, pipe);
-//    });
+  // tcp server and accept
+  tp.server = net.createServer(function connect(sock){
+    tp.pipe(false, {type:'tcp4',ip:sock.remoteAddress,port:sock.remotePort}, function(pipe){
+      pipe.use(sock);
+    });
   });
 
   tp.server.on('error', function(err){
@@ -30,7 +28,6 @@ exports.mesh = function(mesh, cbExt)
   });
 
   // turn a path into a pipe
-  /*
   tp.pipe = function(link, path, cbPipe){
     if(typeof path != 'object' || path.type != 'tcp4') return false;
     if(typeof path.ip != 'string' || typeof path.port != 'number') return false;
@@ -41,35 +38,48 @@ exports.mesh = function(mesh, cbExt)
     tp.pipes[id] = pipe;
     pipe.id = id;
     pipe.path = path;
+    pipe.chunks = lob.chunking({}, function receive(err, packet){
+      if(packet) mesh.receive(packet, pipe);
+    });
+    // util to add/use this socket
+    pipe.use = function(sock){
+      if(pipe.sock) pipe.sock.end();
+      // track this sock and 'pipe' it to/from our chunks
+      pipe.sock = sock;
+      sock.pipe(pipe.chunks);
+      pipe.chunks.pipe(sock);
+      sock.on('end',function(){
+        pipe.sock = false;
+      })
+    }
     pipe.onSend = function(packet, link, cb){
-      var buf = lob.encode(packet);
-      tp.server.send(buf, 0, buf.length, path.port, path.ip, cb);
+      // must create a connecting socket if none
+      if(!pipe.sock) pipe.use(net.connect(path));
+      pipe.chunks.send(packet);
+      cb();
     }
     cbPipe(pipe);
   };
-*/
+
   // return our current addressible paths
   tp.paths = function(){
     var ifaces = os.networkInterfaces()
     var address = tp.server.address();
-    var paths = [];
-    var localhost;
+    var local = '127.0.0.1';
+    var best = mesh.public.ipv4; // prefer that if any set
     for (var dev in ifaces) {
       ifaces[dev].forEach(function(details){
         if(details.family != 'IPv4') return;
-        if(details.address == mesh.public.ipv4) return; // don't duplicate
-        var path = {type:'tcp4',ip:details.address,port:address.port};
-        if(details.internal) localhost = path;
-        else paths.push(path);
+        if(details.internal)
+        {
+          local = details.address;
+          return;
+        }
+        if(!best) best = details.address;
       });
     }
-    // use localhost path only if no others exist
-    if(paths.length == 0 && localhost) paths.push(localhost);
-    // add in any nat mapping
-    if(tp.nat) paths.push({type:'tcp4',ip:tp.nat.ip,port:tp.nat.port});
-    // if public, add it too
-    if(mesh.public.ipv4) paths.push({type:'tcp4',ip:mesh.public.ipv4,port:address.port});
-    return paths;
+    best = tp.nat||best||local;
+    return [{type:'tcp4',ip:best,port:address.port}];
   };
 
   // use config options or bind any/all
