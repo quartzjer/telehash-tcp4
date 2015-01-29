@@ -1,6 +1,6 @@
 {
   "name": "telehash-tcp4",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Transport bindings for telehash to tcp4",
   "main": "index.js",
   "dependencies": {

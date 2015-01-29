@@ -24,7 +24,7 @@ exports.mesh = function(mesh, cbExt)
   });
 
   tp.server.on('error', function(err){
-    telehash.log.error('tcp4 socket fatal error',err);
+    mesh.log.error('tcp4 socket fatal error',err);
   });
 
   // turn a path into a pipe
@@ -39,6 +39,17 @@ exports.mesh = function(mesh, cbExt)
     pipe.id = id;
     pipe.path = path;
     pipe.chunks = lob.chunking({}, function receive(err, packet){
+      if(err)
+      {
+        if(err == "HTTP detected" && mesh.public.url)
+        {
+          mesh.log.debug('tcp detected http and is redirecting',mesh.public.url);
+          pipe.sock.end('HTTP/1.0 302 Found\r\nLocation: '+mesh.public.url+'\r\n\r\n');
+          return;
+        }
+        mesh.log.error('pipe chunk read error',err,pipe.id);
+        return;
+      }
       if(packet) mesh.receive(packet, pipe);
     });
     // util to add/use this socket
@@ -85,7 +96,7 @@ exports.mesh = function(mesh, cbExt)
 
   // use config options or bind any/all
   tp.server.listen(args.port?args.port:exports.port, args.ip||exports.ip, function(err){
-    if(err) telehash.log.error('tcp4 listen error',err);
+    if(err) mesh.log.error('tcp4 listen error',err);
     // TODO start pmp and upnp w/ our port
     cbExt(undefined, tp);
   });
