@@ -48,6 +48,7 @@ exports.mesh = function(mesh, cbExt)
       pipe.sock = sock;
       sock.pipe(pipe.chunks);
       pipe.chunks.pipe(sock);
+      sock.on('error',function(){}); // ignore errors, just handle end
       sock.on('end',function(){
         pipe.sock = false;
       })
