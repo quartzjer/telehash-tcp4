@@ -44,7 +44,11 @@ exports.mesh = function(mesh, cbExt)
         if(err == "HTTP detected" && mesh.public.url)
         {
           mesh.log.debug('tcp detected http and is redirecting',mesh.public.url);
-          pipe.sock.end('HTTP/1.0 302 Found\r\nLocation: '+mesh.public.url+'\r\n\r\n');
+          var head = [
+            'HTTP/1.0 302 Found',
+            'Access-Control-Allow-Origin: *',
+            'Location: '+mesh.public.url];
+          pipe.sock.end(head.join('\r\n')+'\r\n');
           return;
         }
         mesh.log.error('pipe chunk read error',err,pipe.id);
